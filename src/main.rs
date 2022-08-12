@@ -82,19 +82,29 @@ async fn main() -> io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::init();
 
+    print!("Spinning up MAPI GraphQL service...");
     let app_state = web::Data::new(AppState {
         gqlmapi: MAPIGraphQL::new(false /*use_default_profile*/),
     });
-
-    HttpServer::new(move || {
+    println!("done!");
+    
+    let host = "127.0.0.1";
+    let port = 8080;
+    let graphql_route_path = "/graphql";
+    print!("Spinning up web server at {host}:{port}...", host=host, port=port);
+    let running_server = HttpServer::new(move || {
         App::new()
             .wrap(middleware::Logger::default())
             .app_data(app_state.clone())
-            .service(web::resource("/graphql")
+            .service(web::resource(graphql_route_path)
                 .route(web::get().to(graphql_get))
                 .route(web::post().to(graphql_post)))
     })
-    .bind(("127.0.0.1", 8080))?
-    .run()
-    .await
+    .bind((host, port))?
+    .run();
+    println!("done!");
+
+    println!("Ready for GraphQL query execution at http://{host}:{port}{graphql_route_path}", host=host, port=port, graphql_route_path=graphql_route_path);
+
+    running_server.await
 }
