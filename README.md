@@ -11,6 +11,3 @@ To play around with the underlying gqlmapi schema, I recommended checking out [t
 
 ## Dependencies
 
-- [Microsoft Outlook](https://en.wikipedia.org/wiki/Microsoft_Outlook) for runtime MAPI support
-- [gqlmapi](https://github.com/microsoft/gqlmapi), installable via [vcpkg](https://github.com/microsoft/vcpkg)
-- [cppgraphql](https://github.com/microsoft/cppgraphqlgen), installable via [vcpkg](https://github.com/microsoft/vcpkg)
