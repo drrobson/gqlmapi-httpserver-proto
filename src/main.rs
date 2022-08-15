@@ -1,5 +1,5 @@
 use std::{io, sync::mpsc};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize};
 use actix_web::{web, App, HttpResponse, HttpServer, middleware, Responder};
 
 use gqlmapi_rs::{MAPIGraphQL};
@@ -21,13 +21,6 @@ struct GraphQLRequest {
     operation_name: String,
 }
 
-#[derive(Serialize)]
-struct GraphQLResponse
-{
-    data: Option<serde_json::Value>,
-    errors: Option<Vec<String>>,
-}
-
 // Synchronously executes the given GraphQL request against the provided gqlmapi service instance
 fn execute_query(gqlmapi: &MAPIGraphQL, request: &GraphQLRequest) -> Result<String, String> {
     let (tx_next, rx_next) = mpsc::channel();
@@ -47,34 +40,29 @@ fn execute_query(gqlmapi: &MAPIGraphQL, request: &GraphQLRequest) -> Result<Stri
     rx_next.recv().map_err(map_recv_error)
 }
 
-fn format_response(result: Result<String, String>) -> GraphQLResponse {
-    match result {
-        Ok(data) => {
-            let data = serde_json::from_str(&data);
-            match data {
-                Ok(data) => GraphQLResponse { data: Some(data), errors: None },
-                Err(err) => GraphQLResponse { data: None, errors: Some(vec![err.to_string()]) },
-            }
-        },
-        Err(err) => GraphQLResponse { data: None, errors: Some(vec![err]) },
-    }
+fn execute_graphql_request(gqlmapi: &MAPIGraphQL, request: &GraphQLRequest) -> HttpResponse {
+    let result = execute_query(&gqlmapi, &request);
+    let response = result.unwrap_or_else(|err| { format!("{{\"errors\":[\"{}\"]}}", &err)});
+
+    HttpResponse::Ok().content_type("application/json").body(response)
 }
 
 // graphql route for HTTP GET
 async fn graphql_get(app_state: web::Data<AppState>, request: web::Query<GraphQLRequest>) -> impl Responder {
     let request = request.into_inner();
-    let result = execute_query(&(app_state.gqlmapi), &request);
-    let body = format_response(result);
-
-    HttpResponse::Ok().body(serde_json::to_string(&body).expect("Failed to serialize the GraphQLResponse"))
+    execute_graphql_request(&(app_state.gqlmapi), &request)
 }
 
 // graphql route for HTTP POST
 async fn graphql_post(app_state: web::Data<AppState>, request: web::Json<GraphQLRequest>) -> impl Responder {
-    let result = execute_query(&(app_state.gqlmapi), &request);
-    let body = format_response(result);
+    execute_graphql_request(&(app_state.gqlmapi), &request)
+}
 
-    HttpResponse::Ok().body(serde_json::to_string(&body).expect("Failed to serialize the GraphQLResponse"))
+// graphiql route
+async fn graphiql() -> impl Responder {
+    HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(include_str!("../public/index.html"))
 }
 
 #[actix_web::main]
@@ -91,6 +79,7 @@ async fn main() -> io::Result<()> {
     let host = "127.0.0.1";
     let port = 8080;
     let graphql_route_path = "/graphql";
+    let graphiql_route_path = "/graphiql";
     print!("Spinning up web server at {host}:{port}...", host=host, port=port);
     let running_server = HttpServer::new(move || {
         App::new()
@@ -99,12 +88,16 @@ async fn main() -> io::Result<()> {
             .service(web::resource(graphql_route_path)
                 .route(web::get().to(graphql_get))
                 .route(web::post().to(graphql_post)))
+            .route(graphiql_route_path, web::get().to(graphiql))
+            
     })
     .bind((host, port))?
     .run();
     println!("done!");
 
-    println!("Ready for GraphQL query execution at http://{host}:{port}{graphql_route_path}", host=host, port=port, graphql_route_path=graphql_route_path);
+    println!("MAPI GraphQL server up and running at http://{host}:{port}, with these routes:
+    \t{graphql_route_path} - HTTP-based GraphQL query execution a la https://graphql.org/learn/serving-over-http
+    \t{graphiql_route_path} - GraphiQL IDE for this service to facilitate query crafting/schema exploration");
 
     running_server.await
 }
