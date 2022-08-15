@@ -76,7 +76,7 @@ async fn main() -> io::Result<()> {
     });
     println!("done!");
     
-    let host = "127.0.0.1";
+    let host = "localhost";
     let port = 8080;
     let graphql_route_path = "/graphql";
     let graphiql_route_path = "/graphiql";
