@@ -1,6 +1,7 @@
 use std::{io, sync::mpsc};
 use serde::{Deserialize};
 use actix_web::{web, App, HttpResponse, HttpServer, middleware, Responder};
+use actix_cors::Cors;
 
 use gqlmapi_rs::{MAPIGraphQL};
 
@@ -82,8 +83,15 @@ async fn main() -> io::Result<()> {
     let graphiql_route_path = "/graphiql";
     print!("Spinning up web server at {host}:{port}...", host=host, port=port);
     let running_server = HttpServer::new(move || {
+        let cors_policy = Cors::default()
+            .allow_any_origin()
+            .allow_any_method()
+            .allow_any_header()
+            .send_wildcard();
+
         App::new()
             .wrap(middleware::Logger::default())
+            .wrap(cors_policy)
             .app_data(app_state.clone())
             .service(web::resource(graphql_route_path)
                 .route(web::get().to(graphql_get))
