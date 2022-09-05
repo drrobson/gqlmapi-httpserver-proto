@@ -17,8 +17,8 @@ struct AppState {
 struct GraphQLRequest {
     query: String,
     #[serde(default)] // want to allow queries that omit variables, so make this param optional
-    variables: String,
-    #[serde(default)] // want to allow queries that omit variables, so make this param optional
+    variables: serde_json::Value,
+    #[serde(default)] // want to allow queries that omit the operation_name, so make this param optional
     operation_name: String,
 }
 
@@ -28,8 +28,10 @@ fn execute_query(gqlmapi: &MAPIGraphQL, request: &GraphQLRequest) -> Result<Stri
     let (tx_complete, rx_complete) = mpsc::channel();
     
     // Parse the query and create a listener for its results
+    let variables = if request.variables.is_null() { String::from("") } else { request.variables.to_string() };
     let parsed_query = gqlmapi.parse_query(request.query.as_str())?;
-    let result_listener = gqlmapi.subscribe(parsed_query, request.operation_name.as_str(), request.variables.as_str());
+    println!("variables: {}", variables);
+    let result_listener = gqlmapi.subscribe(parsed_query, request.operation_name.as_str(), &variables);
     let mut result_listener_locked = result_listener.lock().map_err(|err| format!("error code: {}", err))?;
 
     // Initiate async listening for results of the parsed query
